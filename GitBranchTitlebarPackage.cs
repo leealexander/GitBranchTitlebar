@@ -101,9 +101,31 @@ namespace GitBranchTitlebar
 
             foreach (IGitRepositoryInfo repo in gitExt.ActiveRepositories)
             {
-                if (repo != null && !string.IsNullOrEmpty(repo.CurrentBranch.Name))
-                {
+                if (repo == null)
+                    continue;
+
+                // Check for regular branch
+                if (!string.IsNullOrEmpty(repo.CurrentBranch?.Name))
                     return repo.CurrentBranch.Name;
+
+                // Handle Git WorkTree (detached HEAD)
+                if (!string.IsNullOrEmpty(repo.RepositoryPath))
+                {
+                    string headFilePath = Path.Combine(repo.RepositoryPath, "HEAD");
+                    if (File.Exists(headFilePath))
+                    {
+                        string headContent = File.ReadAllText(headFilePath).Trim();
+
+                        if (headContent.StartsWith("ref: "))
+                        {
+                            string branchRef = headContent.Substring(5).Trim();
+                            return branchRef.Replace("refs/heads/", string.Empty);
+                        }
+                        else
+                        {
+                            return headContent.Substring(0, 7); // return commit hash prefix if truly detached
+                        }
+                    }
                 }
             }
 
