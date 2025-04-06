@@ -5,7 +5,7 @@
         <DisplayName>GitBranchTitlebar</DisplayName>
         <Description xml:space="preserve">This extension will add the current branch into the task titlebar...Very useful when you have multiple branches on the go any one time. Makes it easy to see what version you are task switching to.</Description>
         <MoreInfo>https://github.com/leealexander/GitBranchTitlebar</MoreInfo>
-        <License>MIT</License>
+        <License>MIT-license.txt</License>
         <GettingStartedGuide>https://github.com/leealexander/GitBranchTitlebar</GettingStartedGuide>
         <Icon>Assets\git_branch_task_switch_icon.ico</Icon>
         <PreviewImage>Assets\git_branch_task_switch_icon.ico</PreviewImage>
