@@ -39,7 +39,8 @@ namespace GitBranchTitlebar
         private DTE2 _dte;
         private Timer _timer;
         private const string BranchTitleFormat = "{0} - [{1}]";
-        private string _currentBranchName = string.Empty;
+        private string _currentSolutionName = string.Empty;
+        private string _currentBranchName;
 
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
@@ -70,10 +71,19 @@ namespace GitBranchTitlebar
 
             string branchName = GetCurrentGitBranch();
 
-            if (!string.IsNullOrEmpty(branchName) && _currentBranchName != branchName)
+            if (!string.IsNullOrEmpty(branchName))
             {
-                _currentBranchName = branchName;
-                Win32TitleHelper.SetVSMainWindowTitle(_dte, $"{solutionName} - [{branchName}]");
+                solutionName = $"{solutionName} - [{branchName}]";
+                if(_currentBranchName != branchName)
+                {
+                    _currentBranchName = branchName;
+                    Win32TitleHelper.SetVSMainWindowTitle(_dte, solutionName);
+                }
+            }
+
+            if(_currentSolutionName != solutionName)
+            {
+                _currentSolutionName = solutionName;
                 var solutionPath = _dte.Solution.FullName;
                 var staThread = new System.Threading.Thread(() =>
                 {

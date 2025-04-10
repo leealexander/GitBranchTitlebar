@@ -43,7 +43,7 @@ namespace GitBranchTitlebar
                 try
                 {
                     string json = File.ReadAllText(DataFilePath);
-                    recentItems = JsonConvert.DeserializeObject<List<RecentJumpListItem>>(json);
+                    recentItems = Newtonsoft.Json.JsonConvert.DeserializeObject<List<RecentJumpListItem>>(json);
                 }
                 catch (Exception)
                 {
@@ -99,8 +99,9 @@ namespace GitBranchTitlebar
 
             foreach (RecentJumpListItem item in recentItems)
             {
-                JumpListLink jumpListLink = new JumpListLink(item.Path,
-                    string.Format("{0} [{1}]", System.IO.Path.GetFileNameWithoutExtension(item.Path), item.BranchName))
+                var fileName = System.IO.Path.GetFileNameWithoutExtension(item.Path);
+                var title = string.IsNullOrWhiteSpace(branchName) ? fileName : $"{fileName} [{item.BranchName}]";
+                JumpListLink jumpListLink = new JumpListLink(item.Path, title)
                 {
                     IconReference = new IconReference(item.Path, 0)
                 };
