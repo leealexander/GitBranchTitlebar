@@ -19,11 +19,13 @@ namespace GitBranchTitlebar
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
-        public static bool SetVSMainWindowTitle(DTE2 dte, string newTitle)
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        public static bool SetVSMainWindowTitle(string currentTitle, string newTitle)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            string currentTitle = dte.MainWindow.Caption;
             IntPtr hwnd = FindWindow(null, currentTitle);
 
             if (hwnd != IntPtr.Zero)
@@ -32,6 +34,23 @@ namespace GitBranchTitlebar
             }
 
             return false;
+        }
+
+        public static string GetVSMainWindowTitle(string currentTitle)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            IntPtr hwnd = FindWindow(null, currentTitle);
+
+            if (hwnd != IntPtr.Zero)
+            {
+                var sb = new StringBuilder(256);
+                if (GetWindowText(hwnd, sb, sb.Capacity) > 0)
+                {
+                    return sb.ToString();
+                }
+            }
+            return null;
         }
     }
 

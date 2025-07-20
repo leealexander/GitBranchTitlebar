@@ -2,8 +2,9 @@
 using EnvDTE80;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.TeamFoundation.Git.Extensibility;
+using Microsoft.VisualStudio.Shell.Interop;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -39,8 +40,8 @@ namespace GitBranchTitlebar
         private DTE2 _dte;
         private Timer _timer;
         private const string BranchTitleFormat = "{0} - [{1}]";
-        private string _currentSolutionName = string.Empty;
-        private string _currentBranchName;
+        private string _currentBranch = string.Empty;
+        private string _lastForcedTitle = string.Empty;
 
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
@@ -52,14 +53,11 @@ namespace GitBranchTitlebar
             if (dte != null)
             {
                 _dte = dte;
-                _timer = new Timer(UpdateWindowTitle, null, 0, 5000);
+                _timer = new Timer(TimerCallback, null, 0, 5000);
             }
         }
 
-
-
-
-        private async Task UpdateWindowTitleAsync(object state)
+        private async Task UpdateReferencesAsync(object state)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -73,26 +71,31 @@ namespace GitBranchTitlebar
 
             if (!string.IsNullOrEmpty(branchName))
             {
-                solutionName = $"{solutionName} - [{branchName}]";
-                if(_currentBranchName != branchName)
+                var newTitle = $"{solutionName} - [{branchName}]";
+                var currentTitle = Win32TitleHelper.GetVSMainWindowTitle(_dte.MainWindow.Caption);
+                if (string.IsNullOrEmpty(currentTitle))
                 {
-                    _currentBranchName = branchName;
-                    Win32TitleHelper.SetVSMainWindowTitle(_dte, solutionName);
+                    currentTitle = _lastForcedTitle;
                 }
-            }
-
-            if(_currentSolutionName != solutionName)
-            {
-                _currentSolutionName = solutionName;
-                var solutionPath = _dte.Solution.FullName;
-                var staThread = new System.Threading.Thread(() =>
+                if (currentTitle != newTitle)
                 {
-                    JumpListHelper.UpdateSolutionJumpListEntry(solutionPath, branchName);
-                });
+                    Win32TitleHelper.SetVSMainWindowTitle(currentTitle, newTitle);
+                    _lastForcedTitle = newTitle;
+                }
 
-                staThread.SetApartmentState(ApartmentState.STA);
-                staThread.Start();
-                staThread.Join();
+                if (_currentBranch != branchName)
+                {
+                    _currentBranch = branchName;
+                    var solutionPath = _dte.Solution.FullName;
+                    var staThread = new System.Threading.Thread(() =>
+                    {
+                        JumpListHelper.UpdateSolutionJumpListEntry(solutionPath, branchName);
+                    });
+
+                    staThread.SetApartmentState(ApartmentState.STA);
+                    staThread.Start();
+                    staThread.Join();
+                }
             }
         }
 
@@ -106,48 +109,133 @@ namespace GitBranchTitlebar
             return Path.GetFileNameWithoutExtension(_dte.Solution.FullName);
         }
 
-        private async void UpdateWindowTitle(object state)
+        private async void TimerCallback(object state)
         {
-            await ThreadHelper.JoinableTaskFactory.RunAsync(() => UpdateWindowTitleAsync(state));
+            await ThreadHelper.JoinableTaskFactory.RunAsync(() => UpdateReferencesAsync(state));
         }
 
         private string GetCurrentGitBranch()
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            IGitExt gitExt = ServiceProvider.GlobalProvider.GetService(typeof(IGitExt)) as IGitExt;
-
-            if (gitExt == null || gitExt.ActiveRepositories == null)
+            if (_dte.Solution == null || string.IsNullOrEmpty(_dte.Solution.FullName))
                 return string.Empty;
 
-            foreach (IGitRepositoryInfo repo in gitExt.ActiveRepositories)
+            string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
+            return GetGitBranchFromDirectory(solutionDir);
+        }
+
+        private string GetGitBranchFromDirectory(string directory)
+        {
+            try
             {
-                if (repo == null)
-                    continue;
-
-                // Check for regular branch
-                if (!string.IsNullOrEmpty(repo.CurrentBranch?.Name))
-                    return repo.CurrentBranch.Name;
-
-                // Handle Git WorkTree (detached HEAD)
-                if (!string.IsNullOrEmpty(repo.RepositoryPath))
+                // Walk up the directory tree to find .git directory
+                string currentDir = directory;
+                while (!string.IsNullOrEmpty(currentDir))
                 {
-                    string headFilePath = Path.Combine(repo.RepositoryPath, "HEAD");
-                    if (File.Exists(headFilePath))
+                    string gitDir = Path.Combine(currentDir, ".git");
+                    
+                    if (Directory.Exists(gitDir))
                     {
-                        string headContent = File.ReadAllText(headFilePath).Trim();
-
-                        if (headContent.StartsWith("ref: "))
+                        // Found .git directory, try to read HEAD file
+                        string headFile = Path.Combine(gitDir, "HEAD");
+                        if (File.Exists(headFile))
                         {
-                            string branchRef = headContent.Substring(5).Trim();
-                            return branchRef.Replace("refs/heads/", string.Empty);
+                            string headContent = File.ReadAllText(headFile).Trim();
+                            
+                            if (headContent.StartsWith("ref: refs/heads/"))
+                            {
+                                // Extract branch name from ref
+                                return headContent.Substring("ref: refs/heads/".Length);
+                            }
+                            else if (headContent.Length >= 7)
+                            {
+                                // Detached HEAD - return short commit hash
+                                return headContent.Substring(0, 7);
+                            }
                         }
-                        else
+                        break;
+                    }
+                    else if (File.Exists(gitDir))
+                    {
+                        // .git file (git worktree)
+                        string gitFileContent = File.ReadAllText(gitDir).Trim();
+                        if (gitFileContent.StartsWith("gitdir: "))
                         {
-                            return headContent.Substring(0, 7); // return commit hash prefix if truly detached
+                            string realGitDir = gitFileContent.Substring("gitdir: ".Length);
+                            if (!Path.IsPathRooted(realGitDir))
+                            {
+                                realGitDir = Path.Combine(currentDir, realGitDir);
+                            }
+                            
+                            string headFile = Path.Combine(realGitDir, "HEAD");
+                            if (File.Exists(headFile))
+                            {
+                                string headContent = File.ReadAllText(headFile).Trim();
+                                
+                                if (headContent.StartsWith("ref: refs/heads/"))
+                                {
+                                    return headContent.Substring("ref: refs/heads/".Length);
+                                }
+                                else if (headContent.Length >= 7)
+                                {
+                                    return headContent.Substring(0, 7);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    
+                    // Move up one directory level
+                    string parentDir = Path.GetDirectoryName(currentDir);
+                    if (parentDir == currentDir) // Reached root
+                        break;
+                    currentDir = parentDir;
+                }
+            }
+            catch (Exception)
+            {
+                // Ignore exceptions and fall back to git command
+            }
+
+            // Fallback: try to use git command
+            return GetGitBranchFromCommand(directory);
+        }
+
+        private string GetGitBranchFromCommand(string workingDirectory)
+        {
+            try
+            {
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "rev-parse --abbrev-ref HEAD",
+                    WorkingDirectory = workingDirectory,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = System.Diagnostics.Process.Start(processInfo))
+                {
+                    if (process != null)
+                    {
+                        process.WaitForExit(5000); // 5 second timeout
+                        if (process.ExitCode == 0)
+                        {
+                            string output = process.StandardOutput.ReadToEnd().Trim();
+                            if (!string.IsNullOrEmpty(output) && output != "HEAD")
+                            {
+                                return output;
+                            }
                         }
                     }
                 }
+            }
+            catch (Exception)
+            {
+                // Git command failed, ignore
             }
 
             return string.Empty;
@@ -158,7 +246,6 @@ namespace GitBranchTitlebar
             _timer?.Dispose();
             base.Dispose(disposing);
         }
-
     }
 }
 

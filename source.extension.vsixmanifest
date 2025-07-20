@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="GitBranchTitlebar.1285b63d-4720-44ef-b458-555107c937f6" Version="1.02" Language="en-US" Publisher="Lee Alexander" />
+        <Identity Id="GitBranchTitlebar.1285b63d-4720-44ef-b458-555107c937f6" Version="1.03" Language="en-US" Publisher="Lee Alexander" />
         <DisplayName>GitBranchTitlebar</DisplayName>
         <Description xml:space="preserve">This extension will add the current branch into the task titlebar...Very useful when you have multiple branches on the go any one time. Makes it easy to see what version you are task switching to.</Description>
         <MoreInfo>https://github.com/leealexander/GitBranchTitlebar</MoreInfo>

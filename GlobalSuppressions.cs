@@ -5,4 +5,4 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "<Pending>", Scope = "member", Target = "~M:GitBranchTitlebar.GitBranchTitlebarPackage.UpdateWindowTitle(System.Object)")]
+[assembly: SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "<Pending>", Scope = "member", Target = "~M:GitBranchTitlebar.GitBranchTitlebarPackage.TimerCallback(System.Object)")]
