@@ -113,7 +113,7 @@ namespace GitBranchTitlebar
                     var categoryName = solutionGroup.Key; // Solution name without extension
                     var solutionCategory = new JumpListCustomCategory(categoryName);
 
-                    foreach (var item in solutionGroup.OrderByDescending(x => recentItems.IndexOf(x)))
+                    foreach (var item in solutionGroup.OrderBy(x => recentItems.IndexOf(x)))
                     {
                         var title = string.IsNullOrWhiteSpace(item.BranchName) 
                             ? System.IO.Path.GetDirectoryName(item.Path) // Show directory if no branch
