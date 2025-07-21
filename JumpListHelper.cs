@@ -101,40 +101,42 @@ namespace GitBranchTitlebar
 
             JumpList jumpList = JumpList.CreateJumpList();
 
-            // Separate solutions that have multiple instances with branches from regular solutions
-            var solutionsWithMultipleInstancesAndBranches = solutionGroups
-                .Where(group => group.Count() > 1 && group.Any(item => !string.IsNullOrWhiteSpace(item.BranchName)))
-                .ToList();
+            // Track which solutions have been added to custom categories
+            var processedSolutions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var regularSolutions = recentItems
-                .Where(item => !solutionsWithMultipleInstancesAndBranches
-                    .Any(group => group.Key.Equals(System.IO.Path.GetFileNameWithoutExtension(item.Path), StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-
-            // Create categories for solutions with multiple instances and branches
-            foreach (var solutionGroup in solutionsWithMultipleInstancesAndBranches)
+            // Create custom categories for solutions with multiple instances and branches
+            foreach (var solutionGroup in solutionGroups)
             {
-                var categoryName = solutionGroup.Key; // Solution name without extension
-                var solutionCategory = new JumpListCustomCategory(categoryName);
-
-                foreach (var item in solutionGroup.OrderByDescending(x => recentItems.IndexOf(x)))
+                // Only create custom category if there are multiple instances AND at least one has a branch
+                if (solutionGroup.Count() > 1 && solutionGroup.Any(item => !string.IsNullOrWhiteSpace(item.BranchName)))
                 {
-                    var title = string.IsNullOrWhiteSpace(item.BranchName) 
-                        ? System.IO.Path.GetDirectoryName(item.Path) // Show directory if no branch
-                        : $"[{item.BranchName}] - {System.IO.Path.GetDirectoryName(item.Path)}";
-                    
-                    var jumpListLink = new JumpListLink(item.Path, title)
+                    var categoryName = solutionGroup.Key; // Solution name without extension
+                    var solutionCategory = new JumpListCustomCategory(categoryName);
+
+                    foreach (var item in solutionGroup.OrderByDescending(x => recentItems.IndexOf(x)))
                     {
-                        IconReference = new IconReference(item.Path, 0)
-                    };
+                        var title = string.IsNullOrWhiteSpace(item.BranchName) 
+                            ? System.IO.Path.GetDirectoryName(item.Path) // Show directory if no branch
+                            : $"[{item.BranchName}]";
+                        
+                        var jumpListLink = new JumpListLink(item.Path, title)
+                        {
+                            IconReference = new IconReference(item.Path, 0)
+                        };
 
-                    solutionCategory.AddJumpListItems(jumpListLink);
+                        solutionCategory.AddJumpListItems(jumpListLink);
+                        processedSolutions.Add(item.Path);
+                    }
+
+                    jumpList.AddCustomCategories(solutionCategory);
                 }
-
-                jumpList.AddCustomCategories(solutionCategory);
             }
 
-            // Create "Recent" category for regular solutions (single instances or no branches)
+            // Create "Recent" category for all remaining solutions (not processed in custom categories)
+            var regularSolutions = recentItems
+                .Where(item => !processedSolutions.Contains(item.Path))
+                .ToList();
+
             if (regularSolutions.Any())
             {
                 var recentCategory = new JumpListCustomCategory("Recent");
