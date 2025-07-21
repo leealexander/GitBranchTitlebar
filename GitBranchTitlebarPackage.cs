@@ -41,6 +41,7 @@ namespace GitBranchTitlebar
         private Timer _timer;
         private const string BranchTitleFormat = "{0} - [{1}]";
         private string _currentBranch = string.Empty;
+        private string _currentSolutionPath = string.Empty;
         private string _lastForcedTitle = string.Empty;
 
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
@@ -68,6 +69,7 @@ namespace GitBranchTitlebar
             }
 
             string branchName = GetCurrentGitBranch();
+            var solutionPath = _dte.Solution.FullName;
 
             if (!string.IsNullOrEmpty(branchName))
             {
@@ -82,20 +84,21 @@ namespace GitBranchTitlebar
                     Win32TitleHelper.SetVSMainWindowTitle(currentTitle, newTitle);
                     _lastForcedTitle = newTitle;
                 }
+            }
 
-                if (_currentBranch != branchName)
+            // Update jump list if either the solution path or branch has changed
+            if (_currentBranch != branchName || _currentSolutionPath != solutionPath)
+            {
+                _currentBranch = branchName;
+                _currentSolutionPath = solutionPath;
+                var staThread = new System.Threading.Thread(() =>
                 {
-                    _currentBranch = branchName;
-                    var solutionPath = _dte.Solution.FullName;
-                    var staThread = new System.Threading.Thread(() =>
-                    {
-                        JumpListHelper.UpdateSolutionJumpListEntry(solutionPath, branchName);
-                    });
+                    JumpListHelper.UpdateSolutionJumpListEntry(solutionPath, branchName);
+                });
 
-                    staThread.SetApartmentState(ApartmentState.STA);
-                    staThread.Start();
-                    staThread.Join();
-                }
+                staThread.SetApartmentState(ApartmentState.STA);
+                staThread.Start();
+                staThread.Join();
             }
         }
 

@@ -104,17 +104,30 @@ namespace GitBranchTitlebar
             // Track which solutions have been added to custom categories
             var processedSolutions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // Create custom categories for solutions with multiple instances and branches
-            foreach (var solutionGroup in solutionGroups)
+            // Create custom categories for solutions with multiple instances and branches (limit to 3 categories)
+            var customCategoriesCount = 0;
+            const int maxCustomCategories = 2;
+            const int maxItemsPerCategory = 5; // Limit items per category to 3 (make it very obvious)
+
+            foreach (var solutionGroup in solutionGroups.OrderBy(g => recentItems.Where(item => 
+                System.IO.Path.GetFileNameWithoutExtension(item.Path).Equals(g.Key, StringComparison.OrdinalIgnoreCase)).Min(item => recentItems.IndexOf(item))))
             {
                 // Only create custom category if there are multiple instances AND at least one has a branch
-                if (solutionGroup.Count() > 1 && solutionGroup.Any(item => !string.IsNullOrWhiteSpace(item.BranchName)))
+                // And we haven't exceeded the maximum number of custom categories
+                if (customCategoriesCount < maxCustomCategories && 
+                    solutionGroup.Count() > 1 && 
+                    solutionGroup.Any(item => !string.IsNullOrWhiteSpace(item.BranchName)))
                 {
                     var categoryName = solutionGroup.Key; // Solution name without extension
                     var solutionCategory = new JumpListCustomCategory(categoryName);
 
+                    var itemsAdded = 0;
+                    // Limit to 3 most recent items in this category
                     foreach (var item in solutionGroup.OrderBy(x => recentItems.IndexOf(x)))
                     {
+                        if (itemsAdded >= maxItemsPerCategory)
+                            break;
+
                         var title = string.IsNullOrWhiteSpace(item.BranchName) 
                             ? System.IO.Path.GetDirectoryName(item.Path) // Show directory if no branch
                             : $"[{item.BranchName}]";
@@ -126,15 +139,18 @@ namespace GitBranchTitlebar
 
                         solutionCategory.AddJumpListItems(jumpListLink);
                         processedSolutions.Add(item.Path);
+                        itemsAdded++;
                     }
 
                     jumpList.AddCustomCategories(solutionCategory);
+                    customCategoriesCount++;
                 }
             }
 
-            // Create "Recent" category for all remaining solutions (not processed in custom categories)
+            // Create "Recent" category for remaining solutions (not in custom categories)
             var regularSolutions = recentItems
                 .Where(item => !processedSolutions.Contains(item.Path))
+                .Take(6) // Limit to 6 items
                 .ToList();
 
             if (regularSolutions.Any())
