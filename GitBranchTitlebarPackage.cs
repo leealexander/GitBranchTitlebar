@@ -73,7 +73,7 @@ namespace GitBranchTitlebar
 
             if (!string.IsNullOrEmpty(branchName))
             {
-                var newTitle = $"{solutionName} - [{branchName}]";
+                var newTitle = $"[{branchName}] - {solutionName}";
                 var currentTitle = Win32TitleHelper.GetVSMainWindowTitle(_dte.MainWindow.Caption);
                 if (string.IsNullOrEmpty(currentTitle))
                 {
